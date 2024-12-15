@@ -1,0 +1,10 @@
+dh False
+acdh False
+acdh False
+ddddh False
+dh False
+acdh False
+acdddh False
+acddddddh False
+ddh False
+acdh False

@@ -1,0 +1,4 @@
+S -> acd[BC9] 
+S -> [BC9]ddA 
+A -> h 
+BC9 -> d
