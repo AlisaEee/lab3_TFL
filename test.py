@@ -187,7 +187,7 @@ def has_brackets(symbol, input_str):
             parts = line.split("->")
             if len(parts) == 2:
                 lhs = parts[0].strip()
-                if lhs == symbol:
+                if lhs == symbol[1:-1]:
                     return True
     
     return False
@@ -206,11 +206,14 @@ def read_grammar(input_str):
                 current_sequence = []
                 for symbol in rhs:
                     #print("fdf",symbol,has_brackets(symbol,input_str))
-                    if symbol.startswith('[') and symbol.endswith(']') and has_brackets(symbol,input_str):
+                    if symbol.startswith('[') and symbol.endswith(']'):
                         if current_sequence:
                             combined_rhs.append(current_sequence)
                             combined_rhs=[]
-                        current_sequence.append(symbol)  # Убираем скобки
+                        if not has_brackets(symbol,input_str):
+                            current_sequence.append(symbol) 
+                        else:
+                            current_sequence.append(symbol[1:-1])# Убираем скобки
                     
                     else:
                         current_sequence.append(symbol)  # Добавляем терминал или одиночный нетерминал
@@ -370,7 +373,7 @@ def random_walk(bigram_matrix,FIRST,LAST, start_symbol):
     follow = FIRST[start_symbol]
     current_symbol = random.choice(list(follow))
     sequence = [current_symbol]
-    while bigram_matrix[current_symbol] and random.random() >= 0.01:
+    while bigram_matrix[current_symbol] and random.random() >= 0.07:
         next_symbols = bigram_matrix[current_symbol]
 
         if not next_symbols:
