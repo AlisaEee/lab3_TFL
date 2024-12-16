@@ -1,6 +1,7 @@
 # Структура для хранения грамматики
 import re
 import random
+MAX_DEPTH=3
 class Grammar:
     def __init__(self):
         self.rules = {}
@@ -135,9 +136,9 @@ class Grammar:
 
     def match_string(self, word):
         # Начинаем с начального символа и проверяем слово
-        return self.match(self.start_symbol, word)
+        return self.match(self.start_symbol, word, 0)
 
-    def match(self, symbol, word):
+    def match(self, symbol, word,depth):
         if not word: 
             return symbol == ''  
 
@@ -145,11 +146,14 @@ class Grammar:
             return symbol == word
 
         for rule in self.rules[symbol]:
-            if self.try_rule(rule, word):  
+            if self.try_rule(rule, word,depth):  
                 return True
         return False
 
-    def try_rule(self, rule, word):
+    def try_rule(self, rule, word, depth=0):
+        if depth > MAX_DEPTH:  # MAX_DEPTH - максимальная глубина рекурсии
+            return False
+
         if len(rule) > len(word):
             return False
 
@@ -158,7 +162,7 @@ class Grammar:
             if symbol in self.rules:  # Если символ - нетерминал
                 found = False
                 for i in range(len(word) - index + 1):  # Перебираем возможные длины совпадения
-                    if self.match(symbol, word[index:index + i]):  # Рекурсивно проверяем
+                    if self.match(symbol, word[index:index + i], depth + 1):  # Рекурсивно проверяем
                         found = True
                         index += i
                         break
@@ -173,7 +177,20 @@ class Grammar:
         return index == len(word)
 
 
+
 # Функция для чтения грамматики из строки
+def has_brackets(symbol, input_str):
+    for line in input_str.split("\n"):
+        line = line.strip()
+        if line != "":
+            # Парсим правило
+            parts = line.split("->")
+            if len(parts) == 2:
+                lhs = parts[0].strip()
+                if lhs == symbol:
+                    return True
+    
+    return False
 def read_grammar(input_str):
     grammar = Grammar()
     for line in input_str.split("\n"):
@@ -188,11 +205,12 @@ def read_grammar(input_str):
                 combined_rhs = []
                 current_sequence = []
                 for symbol in rhs:
-                    if symbol.startswith('[') and symbol.endswith(']'):
+                    #print("fdf",symbol,has_brackets(symbol,input_str))
+                    if symbol.startswith('[') and symbol.endswith(']') and has_brackets(symbol,input_str):
                         if current_sequence:
                             combined_rhs.append(current_sequence)
                             combined_rhs=[]
-                        current_sequence.append(symbol[1:-1])  # Убираем скобки
+                        current_sequence.append(symbol)  # Убираем скобки
                     
                     else:
                         current_sequence.append(symbol)  # Добавляем терминал или одиночный нетерминал
@@ -256,18 +274,21 @@ def eliminate_chain_rules(grammar):
                         for next_nonterminal in rhs: 
                             if next_nonterminal.isupper():
                                 stack.append(next_nonterminal)
-
     # 2. Переопределение правил для каждого множества
     def add_rule(new_rhs, nonterm):
+        check=True
         curr_rules = grammar.rules[nonterm]
         for rule in curr_rules:
            # print('rule',rule,len(rule),all(symbol.isupper() for symbol in rule))
             if all(symbol.isupper() for symbol in rule) and len(rule) == 1:  # Если правило состоит только из ожиночного нетерминалов
                 for n in rule:
-                    if n.isupper():
+                    if nonterm==n:
+                        check = False
+                    if n.isupper()and nonterm!=n:
                         add_rule(new_rhs, n)  # Рекурсивно добавляем
             else:
-                new_rhs.append(rule)  # Добавляем правило, если оно содержит терминалы
+                if check:
+                    new_rhs.append(rule)  # Добавляем правило, если оно содержит терминалы
 
     new_rules = {}
     for nonterminal in N:
@@ -401,7 +422,7 @@ A -> h
 BC9 -> d
 """
 '''
-string1 = "acdd"
+string1 = "babbbbababaaaaaabaa"
 string2 = "acdh"
 string3 = "acddg"
 string4 = "dddh"
@@ -409,12 +430,16 @@ string4 = "dddh"
 grammar = read_grammar(grammar_string)
 grammar.set_start_symbol('S')
 new_grammar = eliminate_chain_rules(grammar)
+print(new_grammar.to_formatted_string())
 new_grammar = convert(new_grammar)
 new_grammar.set_start_symbol('S')
+
 s = genString()
 print("Сгенерированная строка:",s)
 print("Принадлежит грамматике?")
 print("String",s,new_grammar.match_string(s))
 
-generateTests(new_grammar,5)
+#generateTests(new_grammar,5)
+
+print("String",string1,new_grammar.match_string(string1))
 print(new_grammar.to_formatted_string())
