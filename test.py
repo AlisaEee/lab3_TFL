@@ -16,12 +16,12 @@ class Grammar:
             self.rules[lhs] = []
         self.rules[lhs].extend(rhs)
     def to_formatted_string(self):
-        max_lhs_len = max(len(lhs) for lhs in self.rules)
+       # max_lhs_len = max(len(lhs) for lhs in self.rules)
         result = ""
         for lhs, rhs_list in self.rules.items():
             print(lhs, rhs_list)
-            rhs_str = " | ".join("".join(rhs) for rhs in rhs_list)
-            result += f"{lhs:<{max_lhs_len}} -> {rhs_str}\n"
+            #rhs_str = " | ".join("".join(rhs) for rhs in rhs_list)
+           # result += f"{lhs:<{max_lhs_len}} -> {rhs_str}\n"
         return result
     
     def check_left_rec(self):
@@ -181,8 +181,8 @@ class Grammar:
         return False
 
     def try_rule(self, rule, word, depth=0):
-        #if depth > MAX_DEPTH:  # MAX_DEPTH - максимальная глубина рекурсии
-        #    return False
+        if depth > MAX_DEPTH:  # MAX_DEPTH - максимальная глубина рекурсии
+            return False
 
         if len(rule) > len(word):
             return False
@@ -210,6 +210,7 @@ class Grammar:
 
 # Функция для чтения грамматики из строки
 def has_brackets(symbol, input_str):
+    found = False
     for line in input_str.split("\n"):
         line = line.strip()
         if line != "":
@@ -217,10 +218,11 @@ def has_brackets(symbol, input_str):
             parts = line.split("->")
             if len(parts) == 2:
                 lhs = parts[0].strip()
-                if lhs == symbol[1:-1]:
-                    return True
-    
-    return False
+                if lhs == symbol: # Нашли символ с []
+                    found = True
+                elif lhs == symbol[1:-1]: # Нашли символ без []
+                    found = False
+    return found
 def read_grammar(input_str):
     grammar = Grammar()
     for line in input_str.split("\n"):
@@ -240,7 +242,7 @@ def read_grammar(input_str):
                         if current_sequence:
                             combined_rhs.append(current_sequence)
                             combined_rhs=[]
-                        if not has_brackets(symbol,input_str):
+                        if has_brackets(symbol,input_str):
                             current_sequence.append(symbol) 
                         else:
                             current_sequence.append(symbol[1:-1])# Убираем скобки
@@ -305,14 +307,13 @@ def eliminate_chain_rules(grammar):
                 if current in grammar.rules:
                     for rhs in grammar.rules[current]:
                         for next_nonterminal in rhs: 
-                            if next_nonterminal.isupper():
+                            if next_nonterminal.isupper() and len(rhs) == 1:
                                 stack.append(next_nonterminal)
     # 2. Переопределение правил для каждого множества
     def add_rule(new_rhs, nonterm):
         check=True
         curr_rules = grammar.rules[nonterm]
         for rule in curr_rules:
-           # print('rule',rule,len(rule),all(symbol.isupper() for symbol in rule))
             if all(symbol.isupper() for symbol in rule) and len(rule) == 1:  # Если правило состоит только из ожиночного нетерминалов
                 for n in rule:
                     if nonterm==n:
@@ -322,7 +323,6 @@ def eliminate_chain_rules(grammar):
             else:
                 if check:
                     new_rhs.append(rule)  # Добавляем правило, если оно содержит терминалы
-
     new_rules = {}
     for nonterminal in N:
         new_rhs = []
@@ -352,7 +352,6 @@ def eliminate_chain_rules(grammar):
     for lhs in reachable:
         if lhs in new_grammar.rules:
             final_rules.add_rule(lhs, new_grammar.rules[lhs])
-
     return final_rules
 
 def convert(grammar):
@@ -371,9 +370,6 @@ def convert(grammar):
             new_grammar.add_rule(nonterminal, [new_rule])
     return new_grammar
 
-#def belongs_to_language(grammar, string):
-    #return matches(grammar, 'S', string, 0,0)
-
 def random_walk(bigram_matrix,FIRST,LAST, start_symbol):
     current_symbol = start_symbol
     follow = FIRST[start_symbol]
@@ -391,7 +387,7 @@ def random_walk(bigram_matrix,FIRST,LAST, start_symbol):
 
     return result_string
 
-def genString():
+def genString(new_grammar):
     FIRST = new_grammar.compute_first()
     FOLLOW = new_grammar.compute_follow()
     LAST = new_grammar.compute_last()
@@ -412,7 +408,7 @@ def genString():
 def generateTests(grammar,number):
     with open('tests.txt', 'w') as f:
         for i in range(number):
-            string = genString()
+            string = genString(new_grammar)
             f.write(string+' '+str(grammar.match_string(string))+'\n')
     f.close()
 def read_grammar_from_file(filepath):
@@ -439,22 +435,20 @@ string4 = "dddh"
 grammar = read_grammar(grammar_string)
 grammar.set_start_symbol('S')
 
-print(grammar.to_formatted_string())
 new_grammar = eliminate_chain_rules(grammar)
+
 new_grammar = convert(new_grammar)
 new_grammar.set_start_symbol('S')
 
 print(new_grammar.to_formatted_string())
-new_grammar.check_left_rec()
-print(new_grammar.to_formatted_string())
-'''
-s = genString()
+
+s = genString(new_grammar)
 print("Сгенерированная строка:",s)
 print("Принадлежит грамматике?")
-print("String",s,new_grammar.match_string('babbbbababaaaaaabaa'))
+print("String",'babbbbababaaaaaabaa',new_grammar.match_string('babbbbababaaaaaabaa'))
 
 generateTests(new_grammar,15)
 
 print("String",string1,new_grammar.match_string(string1))
-'''
-print(new_grammar.to_formatted_string())
+
+#print(new_grammar.to_formatted_string())
