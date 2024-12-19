@@ -16,33 +16,24 @@ class Grammar:
             self.rules[lhs] = []
         self.rules[lhs].extend(rhs)
     def to_formatted_string(self):
-        #max_lhs_len = max(len(lhs) for lhs in self.rules)
+        max_lhs_len = max(len(lhs) for lhs in self.rules)
         result = ""
         for lhs, rhs_list in self.rules.items():
             print(lhs, rhs_list)
-            #rhs_str = " | ".join("".join(rhs) for rhs in rhs_list)
-            #result += f"{lhs:<{max_lhs_len}} -> {rhs_str}\n"
+            rhs_str = " | ".join("".join(rhs) for rhs in rhs_list)
+            result += f"{lhs:<{max_lhs_len}} -> {rhs_str}\n"
         return result
-    '''
-    for Ai∈N
-        for Aj∈{N∣1⩽j<i}
-            for p∈{P∣Ai→Ajγ}
-            удалить продукцию p
-            for Q→xi∈{Aj→δ1∣…∣δk}
-                добавить правило Ai→xiγ
-        устранить непосредственную левую рекурсию для Ai
-   '''
+    
     def check_left_rec(self):
         for Ai in self.rules:
             for production in self.rules[Ai]:
                 print(production[0], Ai)
                 if production[0] == Ai:
-                    print("dfdgfg")
                     self.remove_left_rec()
-                    self.check_left_rec()
+                    #self.check_left_rec()
     def remove_left_rec(self):
         new_rules = {}
-        N = sorted(self.rules.keys())
+        N = self.rules.keys()
         
         for i, Ai in enumerate(N):
             productions = self.rules[Ai]
@@ -62,15 +53,12 @@ class Grammar:
             if left_recursive:
                 new_non_terminal = Ai + '\''
                 new_rules[new_non_terminal] = left_recursive
-                new_rules[Ai] = non_left_recursive + [[str(prod[0]), new_non_terminal] for prod in non_left_recursive]
+
+                new_rules[Ai] = non_left_recursive + [list("".join(prod)+ new_non_terminal) for prod in non_left_recursive]
             else:
                 new_rules[Ai] = productions  # Если нет левой рекурсии, оставляем как есть
-
-        # Обновляем правила
         self.rules = new_rules
 
-            
-        #self.rules= new_rules
     def compute_first(self):
         # Инициализация множеств FIRST для всех нетерминалов
         for A in self.rules:
