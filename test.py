@@ -54,7 +54,7 @@ class Grammar:
                 new_non_terminal = Ai + '\''
                 new_rules[new_non_terminal] = left_recursive
 
-                new_rules[Ai] = non_left_recursive + [list("".join(prod)+ new_non_terminal) for prod in non_left_recursive]
+                new_rules[Ai] = non_left_recursive + [prod + list(new_non_terminal) for prod in non_left_recursive]
             else:
                 new_rules[Ai] = productions  # Если нет левой рекурсии, оставляем как есть
         self.rules = new_rules
@@ -443,10 +443,11 @@ print(grammar.to_formatted_string())
 new_grammar = eliminate_chain_rules(grammar)
 new_grammar = convert(new_grammar)
 new_grammar.set_start_symbol('S')
+
 print(new_grammar.to_formatted_string())
 new_grammar.check_left_rec()
 print(new_grammar.to_formatted_string())
-
+'''
 s = genString()
 print("Сгенерированная строка:",s)
 print("Принадлежит грамматике?")
@@ -455,5 +456,5 @@ print("String",s,new_grammar.match_string('babbbbababaaaaaabaa'))
 generateTests(new_grammar,15)
 
 print("String",string1,new_grammar.match_string(string1))
-
+'''
 print(new_grammar.to_formatted_string())
