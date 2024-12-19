@@ -1,7 +1,7 @@
 # Структура для хранения грамматики
 import re
 import random
-MAX_DEPTH=7
+MAX_DEPTH=3
 class Grammar:
     def __init__(self):
         self.rules = {}
@@ -445,7 +445,7 @@ print(new_grammar.to_formatted_string())
 s = genString(new_grammar)
 print("Сгенерированная строка:",s)
 print("Принадлежит грамматике?")
-print("String",'babbbbababaaaaaabaa',new_grammar.match_string('babbbbababaaaaaabaa'))
+print("String",len('abababaababa'),new_grammar.match_string('abababaababa'))
 
 generateTests(new_grammar,15)
 
