@@ -1,7 +1,7 @@
 # Структура для хранения грамматики
 import re
 import random
-MAX_DEPTH=3
+MAX_DEPTH=7
 class Grammar:
     def __init__(self):
         self.rules = {}
@@ -16,13 +16,61 @@ class Grammar:
             self.rules[lhs] = []
         self.rules[lhs].extend(rhs)
     def to_formatted_string(self):
-        max_lhs_len = max(len(lhs) for lhs in self.rules)
+        #max_lhs_len = max(len(lhs) for lhs in self.rules)
         result = ""
         for lhs, rhs_list in self.rules.items():
-            #print(lhs, rhs_list)
-            rhs_str = " | ".join(" ".join(rhs) for rhs in rhs_list)
-            result += f"{lhs:<{max_lhs_len}} -> {rhs_str}\n"
+            print(lhs, rhs_list)
+            #rhs_str = " | ".join("".join(rhs) for rhs in rhs_list)
+            #result += f"{lhs:<{max_lhs_len}} -> {rhs_str}\n"
         return result
+    '''
+    for Ai∈N
+        for Aj∈{N∣1⩽j<i}
+            for p∈{P∣Ai→Ajγ}
+            удалить продукцию p
+            for Q→xi∈{Aj→δ1∣…∣δk}
+                добавить правило Ai→xiγ
+        устранить непосредственную левую рекурсию для Ai
+   '''
+    def check_left_rec(self):
+        for Ai in self.rules:
+            for production in self.rules[Ai]:
+                print(production[0], Ai)
+                if production[0] == Ai:
+                    print("dfdgfg")
+                    self.remove_left_rec()
+                    self.check_left_rec()
+    def remove_left_rec(self):
+        new_rules = {}
+        N = sorted(self.rules.keys())
+        
+        for i, Ai in enumerate(N):
+            productions = self.rules[Ai]
+            non_left_recursive = []
+            left_recursive = []
+
+            for production in productions:
+                if production[0] == Ai:  # Проверка на леворекурсивность
+                    left_recursive.append(production[1:])  # Убираем Ai
+                    prod = production[1:]
+                    prod.append(production[0]+'\'')
+                    print("PP",prod)
+                    left_recursive.append(prod) 
+                else:
+                    non_left_recursive.append(production)
+            print(left_recursive)
+            if left_recursive:
+                new_non_terminal = Ai + '\''
+                new_rules[new_non_terminal] = left_recursive
+                new_rules[Ai] = non_left_recursive + [[str(prod[0]), new_non_terminal] for prod in non_left_recursive]
+            else:
+                new_rules[Ai] = productions  # Если нет левой рекурсии, оставляем как есть
+
+        # Обновляем правила
+        self.rules = new_rules
+
+            
+        #self.rules= new_rules
     def compute_first(self):
         # Инициализация множеств FIRST для всех нетерминалов
         for A in self.rules:
@@ -139,20 +187,14 @@ class Grammar:
         return self.match(self.start_symbol, word, 0)
 
     def match(self, symbol, word,depth):
-        if not word: 
-            return symbol == ''  
-
-        if symbol not in self.rules:
-            return symbol == word
-
         for rule in self.rules[symbol]:
             if self.try_rule(rule, word,depth):  
                 return True
         return False
 
     def try_rule(self, rule, word, depth=0):
-        if depth > MAX_DEPTH:  # MAX_DEPTH - максимальная глубина рекурсии
-            return False
+        #if depth > MAX_DEPTH:  # MAX_DEPTH - максимальная глубина рекурсии
+        #    return False
 
         if len(rule) > len(word):
             return False
@@ -324,30 +366,6 @@ def eliminate_chain_rules(grammar):
             final_rules.add_rule(lhs, new_grammar.rules[lhs])
 
     return final_rules
-'''def matches(grammar, symbol, string, index,result):
-
-    if index == len(string):
-        return True
-    
-    for rule in grammar.rules[symbol]:
-        current_index = index
-
-        for part in rule:
-            if part.islower(): 
-                if current_index < len(string) and string[current_index] == part:
-                    current_index += 1
-                else:
-                    break
-            else:
-                if not matches(grammar, part, string, current_index, result):
-                    # Если не удалось сопоставить, выходим из цикла, но продолжаем с другим правилом
-                    break
-                current_index = current_index+1
-        else:
-            if current_index == len(string):  # Проверяем, достигли ли конца строки
-                return True
-
-    return False'''
 
 def convert(grammar):
     new_grammar = Grammar()
@@ -432,17 +450,22 @@ string4 = "dddh"
 # Читаем грамматику
 grammar = read_grammar(grammar_string)
 grammar.set_start_symbol('S')
+
+print(grammar.to_formatted_string())
 new_grammar = eliminate_chain_rules(grammar)
-print(new_grammar.to_formatted_string())
 new_grammar = convert(new_grammar)
 new_grammar.set_start_symbol('S')
+print(new_grammar.to_formatted_string())
+new_grammar.check_left_rec()
+print(new_grammar.to_formatted_string())
 
 s = genString()
 print("Сгенерированная строка:",s)
 print("Принадлежит грамматике?")
-print("String",s,new_grammar.match_string(s))
+print("String",s,new_grammar.match_string('babbbbababaaaaaabaa'))
 
-#generateTests(new_grammar,5)
+generateTests(new_grammar,15)
 
 print("String",string1,new_grammar.match_string(string1))
+
 print(new_grammar.to_formatted_string())
