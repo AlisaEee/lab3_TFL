@@ -8,29 +8,166 @@ class Grammar:
         self.first = {}
         self.follow = {}
         self.last = {}
+        self.name_index = 0
         self.precedes = {}
         self.start_symbol = None
+
+        self.isGenerating = {}
+        self.counter = {}
+        self.concernedRules = {}
 
     def add_rule(self, lhs, rhs):
         if lhs not in self.rules:
             self.rules[lhs] = []
         self.rules[lhs].extend(rhs)
+         # Обновляем concernedRules для всех нетерминалов в правой части
+        for rule in rhs:
+            for symbol in rule:
+                if symbol.isupper():  # Если это нетерминал
+                    if symbol not in self.concernedRules:
+                        self.concernedRules[symbol] = []
+                    self.concernedRules[symbol].append(lhs)
+
+                   
     def to_formatted_string(self):
-       # max_lhs_len = max(len(lhs) for lhs in self.rules)
+        max_lhs_len = max(len(lhs) for lhs in self.rules)
         result = ""
         for lhs, rhs_list in self.rules.items():
-            print(lhs, rhs_list)
-            #rhs_str = " | ".join("".join(rhs) for rhs in rhs_list)
-           # result += f"{lhs:<{max_lhs_len}} -> {rhs_str}\n"
+            rhs_str = " | ".join("".join(rhs) for rhs in rhs_list)
+            result += f"{lhs:<{max_lhs_len}} -> {rhs_str}\n"
         return result
+    def PrepareHNF(self):
+        self.long_delete()
+        self = eliminate_chain_rules(self)
+        gen = self.find_generating_non_terminals()
+        nonreach = self.find_unreachable_rules()
+        print(self.to_formatted_string())
+    def find_generating_non_terminals(self):
+        """Находит все порождающие нетерминалы."""
+        # Инициализируем все нетерминалы как непорождающие
+        for lhs in self.rules.keys():
+            self.isGenerating[lhs] = False
+            self.counter[lhs] = 0
+
+        # Счетчик для каждого правила
+        for lhs, rhs_list in self.rules.items():
+            for rhs in rhs_list:
+                for symbol in rhs:
+                    if symbol.isupper():  # Если это нетерминал
+                        self.counter[lhs] += 1
+
+        queue = []
+        for lhs in self.rules.keys():
+            if self.counter[lhs] == 0:
+                queue.append(lhs)
+                self.isGenerating[lhs] = True
+        
+        for lhs, rhs_list in self.rules.items():
+            for rhs in rhs_list:
+                if all(not symbol.isupper() for symbol in rhs): 
+                    self.isGenerating[lhs] = True
+                    queue.append(lhs)
+
+        while queue:
+           current_non_terminal = queue.pop(0)
+           for lhs in self.concernedRules.get(current_non_terminal, []):
+                self.counter[lhs] -= 1  # Уменьшаем счетчик для всех для нетер
+
+                if self.counter[lhs] == 0 and not self.isGenerating[lhs]: #Если счётчик порождающих обнулился, то пометим его порождающим.
+                    self.isGenerating[lhs] = True
+                    queue.append(lhs)
+        gen = {non_term for non_term, is_gen in self.isGenerating.items() if is_gen}
+        rules = self.rules.items()
+        self.rules = {}
+        for nonterminal, rightRules in rules:
+            for rightRule in rightRules:
+                flag = True
+                if nonterminal in gen:
+                    for symbol in rightRule:
+                        if symbol.isupper() and symbol not in gen:
+                            flag = False
+                else:
+                    flag = False
+                if flag:       
+                    if nonterminal not in self.rules:
+                        self.rules[nonterminal] = []
+                    self.rules[nonterminal].extend([rightRule])
+
+        return gen
+    def long_delete_rec(self, NT,name_index):
+        for i, rule in enumerate(self.rules[NT]):
+            if len(rule) > 2:
+                new_name = f"[EXTRA-{NT + str(name_index)}]"
+                name_index += 1
+                #CONVERT OLD
+                self.rules[NT][i] = [rule[0], new_name]
+                # MAKE NEW
+                self.rules[new_name] = [rule[1:]]
+                self.long_delete_rec(new_name,name_index)
+    def long_delete(self):
+        index = 0 # start naming id(create new states unique)
+        for nonterminal in list(self.rules.keys()):
+            self.long_delete_rec(nonterminal,index)
+        rules = self.rules.items()
+        self.rules = {}
+        for nonterminal, rightRules in rules:
+            self.rules[nonterminal] = []
+            for rightRule in rightRules:
+                self.rules[nonterminal].extend([rightRule])
+    def find_unreachable_rules(self):
+        if not self.start_symbol or self.start_symbol not in self.rules:
+            return set(self.rules.keys())  # Если начальный символ отсутствует, все правила недостижимы
+
+        reachable = {self.start_symbol} 
+        changed = True
+
+        while changed:
+            changed = False
+            for lhs, rhs_list in self.rules.items():
+                if lhs in reachable:  
+                    for rhs in rhs_list:
+                        for symbol in rhs:
+                            if symbol.isupper() and symbol not in reachable:  # Если это нетерминал
+                                reachable.add(symbol)  # Добавляем  в достижимые
+                                changed = True
+
+        unreachable = {lhs for lhs in self.rules.keys() if lhs not in reachable}
+        rules = self.rules.items()
+        self.rules = {}
+        for nonterminal, rightRules in rules:
+            self.rules[nonterminal] = []
+            for rightRule in rightRules:
+                if nonterminal not in unreachable:
+                    self.rules[nonterminal].extend([rightRule])
+        return unreachable
+    def cyk(self, w):
+        n = len(w)
+        # Initialize the table
+        T = [[set([]) for j in range(n)] for i in range(n)]
     
-    def check_left_rec(self):
-        for Ai in self.rules:
-            for production in self.rules[Ai]:
-                print(production[0], Ai)
-                if production[0] == Ai:
-                    self.remove_left_rec()
-                    #self.check_left_rec()
+        for j in range(n):
+            for lhs, rhs_list in self.rules.items():
+                for rhs in rhs_list:
+                    if len(rhs) == 1 and rhs[0] == w[j]:
+                        T[j][j].add(lhs)
+    
+        # Fill the table for substrings of length 2 to n
+        for length in range(2, n + 1):  
+            for i in range(n - length + 1):  
+                j = i + length - 1 
+                for k in range(i, j):
+                    for lhs, rhs_list in self.rules.items():
+                        for rhs in rhs_list:
+                            if len(rhs) == 2 and rhs[0] in T[i][k] and rhs[1] in T[k + 1][j]:
+                                T[i][j].add(lhs)
+        #for row in T:
+         #   print(row)
+        #print(T[0][n-1])
+        if self.start_symbol in T[0][n-1]:
+            return True
+        else:
+            return False
+
     def remove_left_rec(self):
         new_rules = {}
         N = self.rules.keys()
@@ -169,7 +306,7 @@ class Grammar:
     
     def set_start_symbol(self, symbol):
         self.start_symbol = symbol
-
+    '''
     def match_string(self, word):
         # Начинаем с начального символа и проверяем слово
         return self.match(self.start_symbol, word, 0)
@@ -205,7 +342,7 @@ class Grammar:
                     return False
 
         return index == len(word)
-
+    '''
 
 
 # Функция для чтения грамматики из строки
@@ -328,11 +465,12 @@ def eliminate_chain_rules(grammar):
         new_rhs = []
         add_rule(new_rhs, nonterminal)
         new_rules[nonterminal] = [list(rule) for rule in set(tuple(r) for r in new_rhs)]
-
+    
     # Создаем новую грамматику
     new_grammar = Grammar()
     for nonterminal, rhs in new_rules.items():
         new_grammar.add_rule(nonterminal, rhs)
+    
 
     # 3. Удаление недостижимых правил
     start_symbol = grammar.start_symbol
@@ -347,11 +485,12 @@ def eliminate_chain_rules(grammar):
                     for symbol in rule:
                         if symbol.isupper():  # Если символ - нетерминал, добавляем его в стек
                             stack.append(symbol)
-
+    
     final_rules = Grammar()
     for lhs in reachable:
         if lhs in new_grammar.rules:
             final_rules.add_rule(lhs, new_grammar.rules[lhs])
+    
     return final_rules
 
 def convert(grammar):
@@ -408,8 +547,8 @@ def genString(new_grammar):
 def generateTests(grammar,number):
     with open('tests.txt', 'w') as f:
         for i in range(number):
-            string = genString(new_grammar)
-            f.write(string+' '+str(grammar.match_string(string))+'\n')
+            string = genString(grammar)
+            f.write(string+' '+str(grammar.cyk(string))+'\n')
     f.close()
 def read_grammar_from_file(filepath):
     with open(filepath, 'r') as f:
@@ -434,21 +573,13 @@ string4 = "dddh"
 # Читаем грамматику
 grammar = read_grammar(grammar_string)
 grammar.set_start_symbol('S')
+grammar.PrepareHNF()
+grammar.to_formatted_string()
+print(grammar.cyk(list("bbb")))
 
-new_grammar = eliminate_chain_rules(grammar)
-
-new_grammar = convert(new_grammar)
-new_grammar.set_start_symbol('S')
-
-print(new_grammar.to_formatted_string())
-
-s = genString(new_grammar)
+s = genString(grammar)
 print("Сгенерированная строка:",s)
 print("Принадлежит грамматике?")
-print("String",len('abababaababa'),new_grammar.match_string('abababaababa'))
+print("String",len('abababaababa'),grammar.cyk('abababaababa'))
 
-generateTests(new_grammar,15)
-
-print("String",string1,new_grammar.match_string(string1))
-
-#print(new_grammar.to_formatted_string())
+generateTests(grammar,15)

@@ -1,7 +1,6 @@
-B -> S
-S -> [SS1]   a S1 [S]
-S1 -> b
-S -> S1 S
-S -> a
-S -> S S S
-[SS1] -> S S1
+S -> AA
+S -> AS
+S -> b
+A->SA 
+A->AS
+A->a
