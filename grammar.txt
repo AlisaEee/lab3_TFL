@@ -1,6 +1,5 @@
-S -> AA
-S -> AS
-S -> b
-A->SA 
-A->AS
-A->a
+S -> H
+H->H
+S->abcA
+A->h
+S->p

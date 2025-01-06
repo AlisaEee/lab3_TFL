@@ -11,6 +11,7 @@ class Grammar:
         self.name_index = 0
         self.precedes = {}
         self.start_symbol = None
+        self.index = 0
 
         self.isGenerating = {}
         self.counter = {}
@@ -33,50 +34,136 @@ class Grammar:
         max_lhs_len = max(len(lhs) for lhs in self.rules)
         result = ""
         for lhs, rhs_list in self.rules.items():
+            #print(self.rules)
             rhs_str = " | ".join("".join(rhs) for rhs in rhs_list)
             result += f"{lhs:<{max_lhs_len}} -> {rhs_str}\n"
         return result
+        
     def PrepareHNF(self):
+        self.convert()
         self.long_delete()
-        self = eliminate_chain_rules(self)
+        self.eliminate_chain_rules()
         gen = self.find_generating_non_terminals()
         nonreach = self.find_unreachable_rules()
+        self.deleteUnequalTypeRules()
         print(self.to_formatted_string())
+
+    def eliminate_chain_rules(self):
+        # 1. Построение множеств N
+        N = {}
+        for nonterminal in self.rules:
+            N[nonterminal] = set()
+            visited = set()
+            stack = [nonterminal]
+            while stack:
+                current = stack.pop()
+                if current not in visited:
+                    visited.add(current)
+                    N[nonterminal].add(current)
+                    if current in self.rules:
+                        for rhs in self.rules[current]:
+                            for next_nonterminal in rhs: 
+                                if next_nonterminal.isupper() and len(rhs) == 1:
+                                    stack.append(next_nonterminal)
+        # 2. Переопределение правил для каждого множества
+        def add_rule(new_rhs, nonterm):
+            check=True
+            curr_rules = self.rules[nonterm]
+            for rule in curr_rules:
+                if all(symbol.isupper() for symbol in rule) and len(rule) == 1:  # Если правило состоит только из ожиночного нетерминалов
+                    for n in rule:
+                        if nonterm==n:
+                            check = False
+                        if n.isupper()and nonterm!=n:
+                            add_rule(new_rhs, n)  # Рекурсивно добавляем
+                else:
+                    if check:
+                        new_rhs.append(rule)  # Добавляем правило, если оно содержит терминалы
+        new_rules = {}
+        for nonterminal in N:
+            new_rhs = []
+            add_rule(new_rhs, nonterminal)
+            new_rules[nonterminal] = [list(rule) for rule in set(tuple(r) for r in new_rhs)]
+        
+        # Создаем новую грамматику
+        new_grammar = Grammar()
+        for nonterminal, rhs in new_rules.items():
+            new_grammar.add_rule(nonterminal, rhs)
+        
+    
+        # 3. Удаление недостижимых правил
+        start_symbol = self.start_symbol
+        reachable = set()
+        stack = [start_symbol]
+        while stack:
+            current = stack.pop()
+            if current not in reachable:
+                reachable.add(current)
+                if current in new_grammar.rules:
+                    for rule in new_grammar.rules[current]:
+                        for symbol in rule:
+                            if symbol.isupper():  # Если символ - нетерминал, добавляем его в стек
+                                stack.append(symbol)
+        
+        final_rules = Grammar()
+        for lhs in reachable:
+            if lhs in new_grammar.rules:
+                final_rules.add_rule(lhs, new_grammar.rules[lhs])
+        self.rules = final_rules.rules
+    def convert(self):
+        new_grammar = Grammar()
+
+        for nonterminal in self.rules:
+            for rule in self.rules[nonterminal]:
+                new_rule = []
+                for part_rule in rule:
+                    if part_rule.islower():
+                        new_rule.extend([char for char in part_rule]) 
+                    else:
+                        if self.rules[part_rule]:
+                            new_rule.append(part_rule)
+                # Добавляем новое правило в новую грамматику
+                new_grammar.add_rule(nonterminal, [new_rule])
+        self.rules = new_grammar.rules 
+
     def find_generating_non_terminals(self):
         """Находит все порождающие нетерминалы."""
-        # Инициализируем все нетерминалы как непорождающие
+        all_rules = []
         for lhs in self.rules.keys():
+            for rhs in self.rules[lhs]:
+                all_rules.append((lhs,rhs))
+                
+        concernedRules = {}
+        # Инициализируем все нетерминалы как непорождающие
+        for i,(lhs,rhs) in enumerate(all_rules):
             self.isGenerating[lhs] = False
-            self.counter[lhs] = 0
-
+            self.counter[i] = 0
+            concernedRules[lhs] = []
         # Счетчик для каждого правила
-        for lhs, rhs_list in self.rules.items():
-            for rhs in rhs_list:
-                for symbol in rhs:
-                    if symbol.isupper():  # Если это нетерминал
-                        self.counter[lhs] += 1
+        for i,(lhs,rhs) in enumerate(all_rules):
+            
+            for symbol in rhs:
+                if symbol.isupper():  # Если это нетерминал
+                    self.counter[i] += 1
+                    if i not in concernedRules[symbol]:
+                        concernedRules[symbol] += [i]
 
         queue = []
-        for lhs in self.rules.keys():
-            if self.counter[lhs] == 0:
+        for i,(lhs,rhs) in enumerate(all_rules):
+            if self.counter[i] == 0:
                 queue.append(lhs)
                 self.isGenerating[lhs] = True
-        
-        for lhs, rhs_list in self.rules.items():
-            for rhs in rhs_list:
-                if all(not symbol.isupper() for symbol in rhs): 
-                    self.isGenerating[lhs] = True
-                    queue.append(lhs)
-
         while queue:
            current_non_terminal = queue.pop(0)
-           for lhs in self.concernedRules.get(current_non_terminal, []):
-                self.counter[lhs] -= 1  # Уменьшаем счетчик для всех для нетер
+           for rule in concernedRules[current_non_terminal]:
+                self.counter[rule] -= 1  # Уменьшаем счетчик для всех для нетер
 
-                if self.counter[lhs] == 0 and not self.isGenerating[lhs]: #Если счётчик порождающих обнулился, то пометим его порождающим.
-                    self.isGenerating[lhs] = True
-                    queue.append(lhs)
+                if self.counter[rule] == 0: #Если счётчик порождающих обнулился, то пометим его порождающим.
+                    self.isGenerating[all_rules[rule][0]] = True
+                    queue.append(all_rules[rule][0])
         gen = {non_term for non_term, is_gen in self.isGenerating.items() if is_gen}
+
+        
         rules = self.rules.items()
         self.rules = {}
         for nonterminal, rightRules in rules:
@@ -94,20 +181,19 @@ class Grammar:
                     self.rules[nonterminal].extend([rightRule])
 
         return gen
-    def long_delete_rec(self, NT,name_index):
+    def long_delete_rec(self, NT):
         for i, rule in enumerate(self.rules[NT]):
             if len(rule) > 2:
-                new_name = f"[EXTRA-{NT + str(name_index)}]"
-                name_index += 1
+                new_name = f"[EXTRA-{NT + str(self.index)}]"
+                self.index += 1
                 #CONVERT OLD
                 self.rules[NT][i] = [rule[0], new_name]
                 # MAKE NEW
                 self.rules[new_name] = [rule[1:]]
-                self.long_delete_rec(new_name,name_index)
+                self.long_delete_rec(new_name)
     def long_delete(self):
-        index = 0 # start naming id(create new states unique)
         for nonterminal in list(self.rules.keys()):
-            self.long_delete_rec(nonterminal,index)
+            self.long_delete_rec(nonterminal)
         rules = self.rules.items()
         self.rules = {}
         for nonterminal, rightRules in rules:
@@ -140,6 +226,21 @@ class Grammar:
                 if nonterminal not in unreachable:
                     self.rules[nonterminal].extend([rightRule])
         return unreachable
+
+    def deleteUnequalTypeRules(self):
+        new_rules = {}
+        for lhs in self.rules:   
+            for i,rhs in enumerate(self.rules[lhs]):
+                if len(rhs)>1:
+                    for j,symbol in enumerate(rhs):
+                        if symbol.islower():
+                            new_name = f"[EXTRA-{lhs + str(self.index)}]"
+                            self.index += 1
+                            self.rules[lhs][i][j] = new_name
+                            new_rules[new_name] = symbol
+        for nonterminal, rules in new_rules.items(): 
+           self.add_rule(nonterminal,rules)
+
     def cyk(self, w):
         n = len(w)
         # Initialize the table
@@ -167,6 +268,7 @@ class Grammar:
             return True
         else:
             return False
+
 
     def remove_left_rec(self):
         new_rules = {}
@@ -429,85 +531,6 @@ def display(array,type_task):
     for symbol, curr_set in array.items():
         print(f"{type_task}({symbol}) = {curr_set}")
 
-def eliminate_chain_rules(grammar):
-    # 1. Построение множеств N
-    N = {}
-    for nonterminal in grammar.rules:
-        N[nonterminal] = set()
-        visited = set()
-        stack = [nonterminal]
-        while stack:
-            current = stack.pop()
-            if current not in visited:
-                visited.add(current)
-                N[nonterminal].add(current)
-                if current in grammar.rules:
-                    for rhs in grammar.rules[current]:
-                        for next_nonterminal in rhs: 
-                            if next_nonterminal.isupper() and len(rhs) == 1:
-                                stack.append(next_nonterminal)
-    # 2. Переопределение правил для каждого множества
-    def add_rule(new_rhs, nonterm):
-        check=True
-        curr_rules = grammar.rules[nonterm]
-        for rule in curr_rules:
-            if all(symbol.isupper() for symbol in rule) and len(rule) == 1:  # Если правило состоит только из ожиночного нетерминалов
-                for n in rule:
-                    if nonterm==n:
-                        check = False
-                    if n.isupper()and nonterm!=n:
-                        add_rule(new_rhs, n)  # Рекурсивно добавляем
-            else:
-                if check:
-                    new_rhs.append(rule)  # Добавляем правило, если оно содержит терминалы
-    new_rules = {}
-    for nonterminal in N:
-        new_rhs = []
-        add_rule(new_rhs, nonterminal)
-        new_rules[nonterminal] = [list(rule) for rule in set(tuple(r) for r in new_rhs)]
-    
-    # Создаем новую грамматику
-    new_grammar = Grammar()
-    for nonterminal, rhs in new_rules.items():
-        new_grammar.add_rule(nonterminal, rhs)
-    
-
-    # 3. Удаление недостижимых правил
-    start_symbol = grammar.start_symbol
-    reachable = set()
-    stack = [start_symbol]
-    while stack:
-        current = stack.pop()
-        if current not in reachable:
-            reachable.add(current)
-            if current in new_grammar.rules:
-                for rule in new_grammar.rules[current]:
-                    for symbol in rule:
-                        if symbol.isupper():  # Если символ - нетерминал, добавляем его в стек
-                            stack.append(symbol)
-    
-    final_rules = Grammar()
-    for lhs in reachable:
-        if lhs in new_grammar.rules:
-            final_rules.add_rule(lhs, new_grammar.rules[lhs])
-    
-    return final_rules
-
-def convert(grammar):
-    new_grammar = Grammar()
-
-    for nonterminal in grammar.rules:
-        for rule in grammar.rules[nonterminal]:
-            new_rule = []
-            for part_rule in rule:
-                if part_rule.islower():
-                    new_rule.extend([char for char in part_rule]) 
-                else:
-                    if grammar.rules[part_rule]:
-                        new_rule.append(part_rule)
-            # Добавляем новое правило в новую грамматику
-            new_grammar.add_rule(nonterminal, [new_rule])
-    return new_grammar
 
 def random_walk(bigram_matrix,FIRST,LAST, start_symbol):
     current_symbol = start_symbol
@@ -574,12 +597,13 @@ string4 = "dddh"
 grammar = read_grammar(grammar_string)
 grammar.set_start_symbol('S')
 grammar.PrepareHNF()
-grammar.to_formatted_string()
-print(grammar.cyk(list("bbb")))
+#print("AFTER prep",grammar.to_formatted_string())
+#print(grammar.cyk(list("bbb")))
 
 s = genString(grammar)
 print("Сгенерированная строка:",s)
 print("Принадлежит грамматике?")
-print("String",len('abababaababa'),grammar.cyk('abababaababa'))
+print("String",' abch',len('abch'),grammar.cyk('abch'))
+print("String ", s, len(s),grammar.cyk(s))
 
 generateTests(grammar,15)
